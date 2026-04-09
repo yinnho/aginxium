@@ -263,7 +263,7 @@ pub struct PermissionRequest {
 调用方使用方式：
 
 ```rust
-let client = AginxClient::connect("agent://rcs0aj94.relay.yinnho.cn").await?;
+let client = AginxClient::connect("agent://rcs0aj94.relay.aginx.net").await?;
 let mut events = client.subscribe();
 
 tokio::spawn(async move {
@@ -337,7 +337,7 @@ use aginxium::AginxClient;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let client = AginxClient::connect("agent://rcs0aj94.relay.yinnho.cn").await?;
+    let client = AginxClient::connect("agent://rcs0aj94.relay.aginx.net").await?;
 
     // 监听事件
     let mut events = client.subscribe();

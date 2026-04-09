@@ -1,43 +1,43 @@
 use crate::connection::AginxConnection;
-use crate::error::Result;
-use crate::protocol::acp::{AgentInfo, DiscoveredAgent, DirectoryEntry, Conversation, LlmConfig};
+use crate::error::{AginxiumError, Result};
+use crate::protocol::acp::{AgentInfo, DiscoveredAgent, DirectoryEntry, Conversation, LlmConfig, FileContent};
+
+/// 从 result 中提取数组字段（服务端返回 {"xxx": [...]} 格式）
+fn extract_list<T: serde::de::DeserializeOwned>(result: serde_json::Value, field: &str) -> Result<Vec<T>> {
+    if result.is_array() {
+        serde_json::from_value(result)
+            .map_err(|e| AginxiumError::Protocol(format!("解析列表失败: {}", e)))
+    } else {
+        result.get(field)
+            .cloned()
+            .map(|v| serde_json::from_value(v)
+                .map_err(|e| AginxiumError::Protocol(format!("解析列表失败: {}", e))))
+            .transpose()
+            .map(|v| v.unwrap_or_default())
+    }
+}
 
 /// Agent 相关操作
 impl AginxConnection {
     /// 列出已注册的 Agent
     pub async fn list_agents(&self) -> Result<Vec<AgentInfo>> {
         let result = self.request("listAgents", None).await?;
-        let agents: Vec<AgentInfo> = if result.is_array() {
-            serde_json::from_value(result)
-                .map_err(|e| crate::error::AginxiumError::Protocol(format!("解析 Agent 列表失败: {}", e)))?
-        } else {
-            // 服务端返回 {"agents": [...]}
-            result.get("agents")
-                .cloned()
-                .map(|v| serde_json::from_value(v)
-                    .map_err(|e| crate::error::AginxiumError::Protocol(format!("解析 Agent 列表失败: {}", e))))
-                .transpose()?
-                .unwrap_or_default()
-        };
-        Ok(agents)
+        extract_list(result, "agents")
     }
 
     /// 扫描发现 Agent
     pub async fn discover_agents(&self, path: &str) -> Result<Vec<DiscoveredAgent>> {
         let params = serde_json::json!({ "path": path });
         let result = self.request("discoverAgents", Some(params)).await?;
-        let agents: Vec<DiscoveredAgent> = serde_json::from_value(result)
-            .map_err(|e| crate::error::AginxiumError::Protocol(format!("解析发现结果失败: {}", e)))?;
-        Ok(agents)
+        extract_list(result, "agents")
     }
 
     /// 注册 Agent
-    pub async fn register_agent(&self, agent: &DiscoveredAgent) -> Result<AgentInfo> {
-        let params = serde_json::to_value(agent)
-            .map_err(|e| crate::error::AginxiumError::Protocol(format!("序列化 Agent 失败: {}", e)))?;
+    pub async fn register_agent(&self, config_path: &str) -> Result<AgentInfo> {
+        let params = serde_json::json!({ "configPath": config_path });
         let result = self.request("registerAgent", Some(params)).await?;
         let info: AgentInfo = serde_json::from_value(result)
-            .map_err(|e| crate::error::AginxiumError::Protocol(format!("解析注册结果失败: {}", e)))?;
+            .map_err(|e| AginxiumError::Protocol(format!("解析注册结果失败: {}", e)))?;
         Ok(info)
     }
 
@@ -57,14 +57,14 @@ impl AginxConnection {
     pub async fn get_llm_config(&self) -> Result<LlmConfig> {
         let result = self.request("getLLMConfig", None).await?;
         let config: LlmConfig = serde_json::from_value(result)
-            .map_err(|e| crate::error::AginxiumError::Protocol(format!("解析 LLM 配置失败: {}", e)))?;
+            .map_err(|e| AginxiumError::Protocol(format!("解析 LLM 配置失败: {}", e)))?;
         Ok(config)
     }
 
     /// 设置 LLM 配置
     pub async fn set_llm_config(&self, config: &LlmConfig) -> Result<()> {
         let params = serde_json::to_value(config)
-            .map_err(|e| crate::error::AginxiumError::Protocol(format!("序列化 LLM 配置失败: {}", e)))?;
+            .map_err(|e| AginxiumError::Protocol(format!("序列化 LLM 配置失败: {}", e)))?;
         self.request("setLLMConfig", Some(params)).await?;
         Ok(())
     }
@@ -75,19 +75,33 @@ impl AginxConnection {
     pub async fn list_conversations(&self, agent_id: &str) -> Result<Vec<Conversation>> {
         let params = serde_json::json!({ "agentId": agent_id });
         let result = self.request("listConversations", Some(params)).await?;
-        let conversations: Vec<Conversation> = serde_json::from_value(result)
-            .map_err(|e| crate::error::AginxiumError::Protocol(format!("解析对话列表失败: {}", e)))?;
-        Ok(conversations)
+        extract_list(result, "conversations")
     }
 
-    /// 删除对话
-    pub async fn delete_conversation(&self, agent_id: &str, conversation_id: &str) -> Result<()> {
+    /// 删除对话（服务器用 sessionId 参数）
+    pub async fn delete_conversation(&self, _agent_id: &str, conversation_id: &str) -> Result<()> {
         let params = serde_json::json!({
-            "agentId": agent_id,
-            "conversationId": conversation_id,
+            "sessionId": conversation_id,
         });
         self.request("deleteConversation", Some(params)).await?;
         Ok(())
+    }
+
+    /// 列出会话
+    pub async fn list_sessions(&self, agent_id: Option<&str>) -> Result<Vec<serde_json::Value>> {
+        let params = agent_id.map(|id| serde_json::json!({ "agentId": id }));
+        let result = self.request("listSessions", params).await?;
+        extract_list(result, "sessions")
+    }
+
+    /// 获取消息
+    pub async fn get_messages(&self, session_id: &str, limit: Option<u32>) -> Result<Vec<serde_json::Value>> {
+        let mut params = serde_json::json!({ "sessionId": session_id });
+        if let Some(limit) = limit {
+            params["limit"] = serde_json::Value::Number(limit.into());
+        }
+        let result = self.request("getMessages", Some(params)).await?;
+        extract_list(result, "messages")
     }
 
     // ── 文件 ──
@@ -96,30 +110,25 @@ impl AginxConnection {
     pub async fn list_directory(&self, path: &str) -> Result<Vec<DirectoryEntry>> {
         let params = serde_json::json!({ "path": path });
         let result = self.request("listDirectory", Some(params)).await?;
-        let entries: Vec<DirectoryEntry> = serde_json::from_value(result)
-            .map_err(|e| crate::error::AginxiumError::Protocol(format!("解析目录列表失败: {}", e)))?;
-        Ok(entries)
+        extract_list(result, "entries")
     }
 
-    /// 读取文件
-    pub async fn read_file(&self, path: &str) -> Result<String> {
+    /// 读取文件（返回 base64 编码内容 + 元数据）
+    pub async fn read_file(&self, path: &str) -> Result<FileContent> {
         let params = serde_json::json!({ "path": path });
         let result = self.request("readFile", Some(params)).await?;
-        let content = result["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let content: FileContent = serde_json::from_value(result)
+            .map_err(|e| AginxiumError::Protocol(format!("解析文件内容失败: {}", e)))?;
         Ok(content)
     }
 
     // ── 权限 ──
 
     /// 回复权限请求
-    pub async fn respond_permission(&self, session_id: &str, tool_name: &str, choice: &str) -> Result<()> {
+    pub async fn respond_permission(&self, request_id: &str, option_id: &str) -> Result<()> {
         let params = serde_json::json!({
-            "sessionId": session_id,
-            "toolName": tool_name,
-            "choice": choice,
+            "requestId": request_id,
+            "optionId": option_id,
         });
         self.request("permissionResponse", Some(params)).await?;
         Ok(())

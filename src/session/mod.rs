@@ -68,9 +68,8 @@ impl Session {
             "prompt": [PromptMessage::text(message)],
         });
 
-        // prompt 通过 sessionUpdate 通知返回流式数据，不等响应
         let stream = SessionStream::new(self.id.clone(), self.conn.subscribe());
-        self.conn.notify("session/prompt", Some(params)).await?;
+        self.conn.request_streaming("session/prompt", Some(params), &self.id).await?;
 
         Ok(stream)
     }

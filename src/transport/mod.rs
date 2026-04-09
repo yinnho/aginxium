@@ -1,3 +1,4 @@
+pub mod relay;
 pub mod tcp;
 
 use async_trait::async_trait;

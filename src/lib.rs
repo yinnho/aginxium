@@ -49,7 +49,7 @@ pub use event::{
 };
 pub use protocol::acp::{
     AgentInfo as AcpAgentInfo, Conversation, DiscoveredAgent,
-    DirectoryEntry, LlmConfig, PromptMessage, SessionInfo,
+    DirectoryEntry, FileContent, LlmConfig, PromptMessage, SessionInfo,
 };
 pub use session::{Session, SessionStream};
 
@@ -99,8 +99,8 @@ impl AginxClient {
     }
 
     /// 注册 Agent
-    pub async fn register_agent(&self, agent: &DiscoveredAgent) -> Result<AcpAgentInfo> {
-        self.conn.register_agent(agent).await
+    pub async fn register_agent(&self, config_path: &str) -> Result<AcpAgentInfo> {
+        self.conn.register_agent(config_path).await
     }
 
     /// 绑定设备
@@ -152,14 +152,14 @@ impl AginxClient {
     }
 
     /// 读取文件
-    pub async fn read_file(&self, path: &str) -> Result<String> {
+    pub async fn read_file(&self, path: &str) -> Result<FileContent> {
         self.conn.read_file(path).await
     }
 
     // ── 权限 ──
 
     /// 回复权限请求
-    pub async fn respond_permission(&self, session_id: &str, tool_name: &str, choice: &str) -> Result<()> {
-        self.conn.respond_permission(session_id, tool_name, choice).await
+    pub async fn respond_permission(&self, request_id: &str, option_id: &str) -> Result<()> {
+        self.conn.respond_permission(request_id, option_id).await
     }
 }

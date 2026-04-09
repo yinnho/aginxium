@@ -1,3 +1,6 @@
+// 字段名匹配服务器 JSON 格式（camelCase）
+#![allow(non_snake_case)]
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -7,10 +10,16 @@ use serde_json::Value;
 pub struct AgentInfo {
     pub id: String,
     pub name: String,
+    #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
     pub capabilities: Vec<String>,
     #[serde(alias = "type")]
     pub agent_type: String,
+    #[serde(default)]
+    pub require_workdir: Option<bool>,
+    #[serde(default)]
+    pub working_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,8 +36,9 @@ pub struct DiscoveredAgent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionInfo {
-    pub session_id: String,
-    pub agent_id: String,
+    pub sessionId: String,
+    #[serde(default)]
+    pub agentId: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,57 +57,122 @@ impl PromptMessage {
     }
 }
 
-// ── Session Update 通知 ──
+// ── Session Update 通知（匹配服务器格式）──
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct SessionUpdate {
-    pub session_id: String,
-    #[serde(flatten)]
-    pub kind: SessionUpdateKind,
+pub struct SessionUpdateNotification {
+    pub sessionId: String,
+    pub update: ServerSessionUpdate,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type")]
-pub enum SessionUpdateKind {
+#[serde(tag = "sessionUpdate")]
+pub enum ServerSessionUpdate {
     #[serde(rename = "agent_message_chunk")]
-    TextChunk { text: String },
+    AgentMessageChunk { content: MessageContent },
+
     #[serde(rename = "tool_call")]
-    ToolCall { tool_call: ToolCallData },
+    ToolCall {
+        toolCallId: String,
+        title: String,
+        status: ToolCallStatus,
+        #[serde(default)]
+        rawInput: Option<Value>,
+        #[serde(default)]
+        kind: Option<ToolKind>,
+    },
+
     #[serde(rename = "tool_call_update")]
-    ToolCallUpdate { update: ToolCallUpdateData },
-    #[serde(rename = "available_commands")]
-    AvailableCommands { commands: Vec<String> },
+    ToolCallUpdate {
+        toolCallId: String,
+        #[serde(default)]
+        status: Option<ToolCallStatus>,
+        #[serde(default)]
+        rawOutput: Option<Value>,
+        #[serde(default)]
+        content: Option<Vec<ToolCallContent>>,
+    },
+
+    #[serde(rename = "available_commands_update")]
+    AvailableCommandsUpdate {
+        availableCommands: Vec<CommandInfo>,
+    },
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct ToolCallData {
-    pub id: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum MessageContent {
+    #[serde(rename = "text")]
+    Text { text: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolCallStatus {
+    InProgress,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolKind {
+    Read,
+    Edit,
+    Delete,
+    Move,
+    Search,
+    Execute,
+    Fetch,
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ToolCallContent {
+    #[serde(rename = "content")]
+    Content { content: MessageContent },
+    #[serde(rename = "location")]
+    Location {
+        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        line: Option<u32>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandInfo {
     pub name: String,
-    pub input: Value,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ToolCallUpdateData {
-    pub id: String,
-    pub output: Option<String>,
-    pub error: Option<String>,
-    pub state: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 // ── Permission ──
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PermissionNotification {
-    pub session_id: String,
-    pub tool_name: String,
-    pub description: String,
+    pub requestId: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub toolCall: Option<ToolCallInfo>,
+    #[serde(default)]
     pub options: Vec<PermissionOptionData>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ToolCallInfo {
+    pub toolCallId: String,
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct PermissionOptionData {
-    pub id: String,
+    pub optionId: String,
     pub label: String,
+    #[serde(default)]
+    pub kind: Option<String>,
 }
 
 // ── LLM Config ──
@@ -105,8 +180,9 @@ pub struct PermissionOptionData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmConfig {
     pub provider: String,
-    pub api_key: String,
+    pub apiKey: String,
     pub endpoint: String,
+    #[serde(alias = "format")]
     pub format: String,
     pub model: String,
     #[serde(default = "default_modality")]
@@ -121,10 +197,20 @@ fn default_modality() -> String {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Conversation {
-    pub id: String,
+    #[serde(alias = "id")]
+    pub sessionId: String,
+    #[serde(default)]
+    pub agentId: Option<String>,
+    #[serde(default)]
     pub title: Option<String>,
-    pub created_at: Option<String>,
-    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub lastMessage: Option<String>,
+    #[serde(default)]
+    pub workdir: Option<String>,
+    #[serde(default)]
+    pub createdAt: Option<u64>,
+    #[serde(default)]
+    pub updatedAt: Option<u64>,
 }
 
 // ── Directory / File ──
@@ -134,5 +220,19 @@ pub struct DirectoryEntry {
     pub name: String,
     #[serde(rename = "type")]
     pub entry_type: String,
+    #[serde(default)]
     pub size: Option<u64>,
+    #[serde(default)]
+    pub modified: Option<u64>,
+    #[serde(default)]
+    pub isHidden: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FileContent {
+    pub name: String,
+    pub size: u64,
+    pub content: String, // base64 encoded
+    #[serde(default)]
+    pub mimeType: Option<String>,
 }
