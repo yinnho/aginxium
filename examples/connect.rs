@@ -4,7 +4,7 @@ use aginxium::{AginxClient, SessionEvent};
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let url = std::env::args().nth(1).unwrap_or_else(|| "agent://106.75.32.216".to_string());
+    let url = std::env::args().nth(1).unwrap_or_else(|| "agent://localhost:8866".to_string());
     println!("连接到 {} ...", url);
 
     let client = AginxClient::connect(&url).await?;
