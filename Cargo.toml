@@ -1,0 +1,35 @@
+[package]
+name = "aginxium"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+authors = ["Yinnho Team"]
+license = "MIT"
+description = "Aginix 客户端引擎 - Agent Protocol 的 Chromium"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full", "net", "io-util", "sync", "time", "rt-multi-thread"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+
+# URL parsing
+url = "2"
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
