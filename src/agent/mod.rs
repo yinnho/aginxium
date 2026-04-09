@@ -1,6 +1,6 @@
 use crate::connection::AginxConnection;
 use crate::error::{AginxiumError, Result};
-use crate::protocol::acp::{AgentInfo, DiscoveredAgent, DirectoryEntry, Conversation, LlmConfig, FileContent};
+use crate::protocol::acp::{AgentInfo, DiscoveredAgent, DirectoryEntry, Conversation, FileContent};
 
 /// 从 result 中提取数组字段（服务端返回 {"xxx": [...]} 格式）
 fn extract_list<T: serde::de::DeserializeOwned>(result: serde_json::Value, field: &str) -> Result<Vec<T>> {
@@ -48,24 +48,6 @@ impl AginxConnection {
             "deviceName": device_name,
         });
         self.request("bindDevice", Some(params)).await?;
-        Ok(())
-    }
-
-    // ── LLM 配置 ──
-
-    /// 获取 LLM 配置
-    pub async fn get_llm_config(&self) -> Result<LlmConfig> {
-        let result = self.request("getLLMConfig", None).await?;
-        let config: LlmConfig = serde_json::from_value(result)
-            .map_err(|e| AginxiumError::Protocol(format!("解析 LLM 配置失败: {}", e)))?;
-        Ok(config)
-    }
-
-    /// 设置 LLM 配置
-    pub async fn set_llm_config(&self, config: &LlmConfig) -> Result<()> {
-        let params = serde_json::to_value(config)
-            .map_err(|e| AginxiumError::Protocol(format!("序列化 LLM 配置失败: {}", e)))?;
-        self.request("setLLMConfig", Some(params)).await?;
         Ok(())
     }
 

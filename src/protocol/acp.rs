@@ -175,24 +175,6 @@ pub struct PermissionOptionData {
     pub kind: Option<String>,
 }
 
-// ── LLM Config ──
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlmConfig {
-    pub provider: String,
-    pub apiKey: String,
-    pub endpoint: String,
-    #[serde(alias = "format")]
-    pub format: String,
-    pub model: String,
-    #[serde(default = "default_modality")]
-    pub modality: String,
-}
-
-fn default_modality() -> String {
-    "chat".to_string()
-}
-
 // ── Conversation ──
 
 #[derive(Debug, Clone, Deserialize)]

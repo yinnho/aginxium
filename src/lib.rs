@@ -49,7 +49,7 @@ pub use event::{
 };
 pub use protocol::acp::{
     AgentInfo as AcpAgentInfo, Conversation, DiscoveredAgent,
-    DirectoryEntry, FileContent, LlmConfig, PromptMessage, SessionInfo,
+    DirectoryEntry, FileContent, PromptMessage, SessionInfo,
 };
 pub use session::{Session, SessionStream};
 
@@ -130,18 +130,6 @@ impl AginxClient {
     /// 删除对话
     pub async fn delete_conversation(&self, agent_id: &str, conversation_id: &str) -> Result<()> {
         self.conn.delete_conversation(agent_id, conversation_id).await
-    }
-
-    // ── LLM ──
-
-    /// 获取 LLM 配置
-    pub async fn get_llm_config(&self) -> Result<LlmConfig> {
-        self.conn.get_llm_config().await
-    }
-
-    /// 设置 LLM 配置
-    pub async fn set_llm_config(&self, config: &LlmConfig) -> Result<()> {
-        self.conn.set_llm_config(config).await
     }
 
     // ── 文件 ──
