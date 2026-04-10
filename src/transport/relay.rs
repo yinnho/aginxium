@@ -6,34 +6,48 @@ use super::Transport;
 
 /// Relay 中继传输
 ///
-/// 通过 relay 服务器连接到远程 aginx 实例
+/// 通过 relay 服务器连接到远程 aginx 实例，支持 TLS
 pub struct RelayTransport {
     inner: TcpTransport,
 }
 
+/// Relay 连接选项
+pub struct RelayOptions {
+    pub host: String,
+    pub port: u16,
+    pub target_id: String,
+    pub use_tls: bool,
+    pub tls_domain: Option<String>,
+}
+
 impl RelayTransport {
     /// 连接到 relay 并握手
-    pub async fn connect(relay_host: &str, relay_port: u16, target_id: &str) -> Result<Self> {
-        // 1. TCP 连接到 relay
-        let inner = TcpTransport::connect(relay_host, relay_port).await?;
+    pub async fn connect(opts: RelayOptions) -> Result<Self> {
+        // 创建 TCP 或 TLS 连接
+        let inner = if opts.use_tls {
+            let domain = opts.tls_domain.as_deref().unwrap_or(&opts.host);
+            TcpTransport::connect_tls(&opts.host, opts.port, domain).await?
+        } else {
+            TcpTransport::connect(&opts.host, opts.port).await?
+        };
 
-        // 2. 发送 connect 握手
+        // 发送 connect 握手
         let connect_msg = serde_json::json!({
             "type": "connect",
-            "target": target_id
+            "target": opts.target_id
         });
         let msg = serde_json::to_string(&connect_msg)
             .map_err(|e| AginxiumError::Protocol(format!("序列化失败: {}", e)))?;
         inner.send(msg.as_bytes()).await?;
 
-        // 3. 读取握手响应
+        // 读取握手响应
         let response_line = inner.recv_line().await?;
         let response: serde_json::Value = serde_json::from_str(&response_line)
             .map_err(|e| AginxiumError::Protocol(format!("无效握手响应: {}", e)))?;
 
         match response.get("type").and_then(|v| v.as_str()) {
             Some("connected") => {
-                tracing::info!("Relay 已连接到目标: {}", target_id);
+                tracing::info!("Relay 已连接到目标: {} (TLS: {})", opts.target_id, opts.use_tls);
                 Ok(Self { inner })
             }
             Some("error") => {
@@ -54,7 +68,6 @@ impl RelayTransport {
 #[async_trait]
 impl Transport for RelayTransport {
     async fn send(&self, data: &[u8]) -> Result<()> {
-        // 直传：relay 透明转发 JSON-RPC
         self.inner.send(data).await
     }
 

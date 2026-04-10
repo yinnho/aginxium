@@ -7,6 +7,18 @@ authors = ["Yinnho Team"]
 license = "MIT"
 description = "Aginix 客户端引擎 - Agent Protocol 的 Chromium"
 
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["ffi"]
+
+[features]
+default = []
+ffi = ["uniffi"]
+
 [dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full", "net", "io-util", "sync", "time", "rt-multi-thread"] }
@@ -24,11 +36,14 @@ anyhow = "1"
 # Logging
 tracing = "0.1"
 
-# URL parsing
-url = "2"
+# TLS (rustls — pure Rust, no C dependencies, works on all platforms including Android)
+tokio-rustls = "0.26"
+rustls = { version = "0.23", features = ["ring", "std"], default-features = false }
+rustls-pki-types = "1"
+webpki-roots = "0.26"
 
-# Utilities
-uuid = { version = "1", features = ["v4"] }
+# UniFFI (optional, for FFI bindings)
+uniffi = { version = "0.28", features = ["tokio", "cli"], optional = true }
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

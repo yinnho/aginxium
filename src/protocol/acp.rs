@@ -177,7 +177,7 @@ pub struct PermissionOptionData {
 
 // ── Conversation ──
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Conversation {
     #[serde(alias = "id")]
     pub sessionId: String,
@@ -197,7 +197,7 @@ pub struct Conversation {
 
 // ── Directory / File ──
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectoryEntry {
     pub name: String,
     #[serde(rename = "type")]
@@ -210,7 +210,7 @@ pub struct DirectoryEntry {
     pub isHidden: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileContent {
     pub name: String,
     pub size: u64,

@@ -1,0 +1,10 @@
+[package]
+namespace = "aginxium"
+
+[bindings.kotlin]
+package_name = "com.aginx.aginxium"
+cdylib_name = "aginxium"
+
+[bindings.swift]
+module_name = "Aginxium"
+cdylib_name = "aginxium"

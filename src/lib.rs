@@ -39,6 +39,13 @@ pub mod protocol;
 pub mod session;
 pub mod transport;
 
+#[cfg(feature = "ffi")]
+pub mod ffi;
+
+// UniFFI scaffolding（替代手动 UniFfiTag）
+#[cfg(feature = "ffi")]
+uniffi::setup_scaffolding!();
+
 // Re-export 主要类型
 pub use connection::AginxConnection;
 pub use connection::manager::ConnectionManager;

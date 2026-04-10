@@ -21,10 +21,30 @@ impl ConnectionManager {
         }
     }
 
-    /// 添加一个连接
+    /// 添加一个连接，自动转发其事件到管理器的全局事件流
     pub async fn add(&self, name: String, conn: AginxConnection) {
+        let conn = Arc::new(conn);
+
+        // 转发连接事件到管理器的全局 event_tx
+        let manager_tx = self.event_tx.clone();
+        let mut rx = conn.subscribe();
+        let name_clone = name.clone();
+        tokio::spawn(async move {
+            loop {
+                match rx.recv().await {
+                    Ok(event) => {
+                        let _ = manager_tx.send(event);
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!("[{}] 事件转发落后 {} 条，继续", name_clone, n);
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
         let mut connections = self.connections.write().await;
-        connections.insert(name, Arc::new(conn));
+        connections.insert(name, conn);
     }
 
     /// 获取一个连接
@@ -45,7 +65,7 @@ impl ConnectionManager {
         connections.keys().cloned().collect()
     }
 
-    /// 订阅全局事件
+    /// 订阅全局事件（聚合所有连接的事件）
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {
         self.event_tx.subscribe()
     }

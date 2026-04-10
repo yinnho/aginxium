@@ -2,7 +2,7 @@ use aginxium::{AginxClient, SessionEvent};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().init();
 
     let url = std::env::args().nth(1).unwrap_or_else(|| "agent://localhost:8866".to_string());
     println!("连接到 {} ...", url);
@@ -23,8 +23,8 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    // 优先用 shell 或第一个支持会话的 agent
-    let agent = agents.iter().find(|a| a.id == "shell")
+    // 优先用 claude 或第一个非 builtin agent
+    let agent = agents.iter().find(|a| a.id == "claude")
         .or_else(|| agents.iter().find(|a| a.agent_type != "builtin"))
         .unwrap_or(&agents[0]);
     println!("\n使用 Agent: {} ({})\n", agent.name, agent.id);
@@ -38,8 +38,8 @@ async fn main() -> anyhow::Result<()> {
     let event_handle = tokio::spawn(async move {
         loop {
             match events.recv().await {
-                Ok(aginxium::Event::SessionEvent { session_id, event }) => {
-                    if session_id != session_id { continue; }
+                Ok(aginxium::Event::SessionEvent { session_id: sid, event }) => {
+                    if sid != session_id { continue; }
                     match event {
                         SessionEvent::TextChunk { text } => print!("{}", text),
                         SessionEvent::ToolCallStart { tool_call } => {
