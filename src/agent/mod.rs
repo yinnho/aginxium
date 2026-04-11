@@ -41,14 +41,18 @@ impl AginxConnection {
         Ok(info)
     }
 
-    /// 绑定设备（配对码）
-    pub async fn bind_device(&self, pair_code: &str, device_name: &str) -> Result<()> {
+    /// 绑定设备（配对码），返回 token 用于后续连接认证
+    pub async fn bind_device(&self, pair_code: &str, device_name: &str) -> Result<String> {
         let params = serde_json::json!({
             "pairCode": pair_code,
             "deviceName": device_name,
         });
-        self.request("bindDevice", Some(params)).await?;
-        Ok(())
+        let result = self.request("bindDevice", Some(params)).await?;
+        let token = result.get("token")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        Ok(token)
     }
 
     // ── 对话 ──

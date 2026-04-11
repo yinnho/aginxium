@@ -39,8 +39,8 @@ pub struct AginxConnection {
 }
 
 impl AginxConnection {
-    /// 连接到 aginx 实例
-    pub async fn connect(url: &str) -> Result<Self> {
+    /// 连接到 aginx 实例，可选传入 authToken 进行认证
+    pub async fn connect(url: &str, auth_token: Option<&str>) -> Result<Self> {
         let params = parse_agent_url(url)?;
         let transport = create_transport(params).await?;
 
@@ -60,18 +60,58 @@ impl AginxConnection {
         // 启动接收循环
         conn.start_recv_loop().await;
 
+        // 发送 initialize 进行认证
+        conn.initialize(auth_token).await?;
+
         tracing::info!("已连接到 aginx: {}", url);
         Ok(conn)
     }
 
     /// 连接并启用自动重连
-    pub async fn connect_with_reconnect(url: &str) -> Result<Self> {
-        let conn = Self::connect(url).await?;
+    pub async fn connect_with_reconnect(url: &str, auth_token: Option<&str>) -> Result<Self> {
+        let conn = Self::connect(url, auth_token).await?;
         {
             let mut reconnect_url = conn.reconnect_url.write().await;
             *reconnect_url = Some(url.to_string());
         }
         Ok(conn)
+    }
+
+    /// 发送 initialize 请求完成认证
+    async fn initialize(&self, auth_token: Option<&str>) -> Result<()> {
+        let mut params = serde_json::json!({
+            "protocolVersion": "0.15.0",
+            "clientInfo": {
+                "name": "aginxium",
+                "version": env!("CARGO_PKG_VERSION")
+            }
+        });
+
+        if let Some(token) = auth_token {
+            params["clientInfo"]["_meta"] = serde_json::json!({
+                "authToken": token
+            });
+            // _meta should be at top level of params, not inside clientInfo
+            params["_meta"] = serde_json::json!({
+                "authToken": token
+            });
+        }
+
+        let result = self.request("initialize", Some(params)).await?;
+
+        let authenticated = result.get("authenticated")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        if authenticated {
+            tracing::info!("连接已认证");
+        } else if auth_token.is_some() {
+            tracing::warn!("token 认证失败，连接以未认证模式运行");
+        } else {
+            tracing::info!("连接未认证（无 token）");
+        }
+
+        Ok(())
     }
 
     /// 发送 JSON-RPC 请求并等待响应

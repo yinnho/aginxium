@@ -148,9 +148,12 @@ impl FfiAginxClient {
     /// URL 格式:
     /// - agent://id.relay.yinnho.cn     (TLS relay)
     /// - agent://host:port              (直连)
+    ///
+    /// auth_token: 绑定设备时获得的 token，传空字符串表示无 token（首次绑定）
     #[uniffi::constructor]
-    pub async fn connect(url: String) -> Result<Self, FfiError> {
-        let client = AginxClient::connect(&url).await?;
+    pub async fn connect(url: String, auth_token: String) -> Result<Self, FfiError> {
+        let token = if auth_token.is_empty() { None } else { Some(auth_token.as_str()) };
+        let client = AginxClient::connect(&url, token).await?;
         Ok(Self {
             inner: client,
             listener: Arc::new(Mutex::new(None)),
@@ -246,10 +249,10 @@ impl FfiAginxClient {
         Ok(())
     }
 
-    /// 绑定设备
-    pub async fn bind_device(&self, pair_code: String, device_name: String) -> Result<(), FfiError> {
-        self.inner.bind_device(&pair_code, &device_name).await?;
-        Ok(())
+    /// 绑定设备，返回 token（用于后续连接认证）
+    pub async fn bind_device(&self, pair_code: String, device_name: String) -> Result<String, FfiError> {
+        let token = self.inner.bind_device(&pair_code, &device_name).await?;
+        Ok(token)
     }
 
     /// 列出对话（返回 JSON 字符串）

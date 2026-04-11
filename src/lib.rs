@@ -11,7 +11,8 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> aginxium::Result<()> {
-//!     let client = AginxClient::connect("agent://192.168.1.100").await?;
+//!     // 无 token 连接（首次绑定）
+//!     let client = AginxClient::connect("agent://192.168.1.100", None).await?;
 //!
 //!     // 创建会话并发消息
 //!     let session = client.create_session("claude", None).await?;
@@ -68,9 +69,9 @@ pub struct AginxClient {
 }
 
 impl AginxClient {
-    /// 连接到 aginx 实例
-    pub async fn connect(url: &str) -> Result<Self> {
-        let conn = AginxConnection::connect(url).await?;
+    /// 连接到 aginx 实例，可选传入 authToken 进行认证
+    pub async fn connect(url: &str, auth_token: Option<&str>) -> Result<Self> {
+        let conn = AginxConnection::connect(url, auth_token).await?;
         Ok(Self {
             conn: Arc::new(conn),
         })
@@ -110,8 +111,8 @@ impl AginxClient {
         self.conn.register_agent(config_path).await
     }
 
-    /// 绑定设备
-    pub async fn bind_device(&self, pair_code: &str, device_name: &str) -> Result<()> {
+    /// 绑定设备，返回 token
+    pub async fn bind_device(&self, pair_code: &str, device_name: &str) -> Result<String> {
         self.conn.bind_device(pair_code, device_name).await
     }
 
